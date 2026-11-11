@@ -45,25 +45,45 @@ jobs:
           yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null || true
           "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Set Android compile SDK to 36
+      - name: Force compile SDK 36 for app and Android plugins
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
-          candidates = [Path("android/app/build.gradle"), Path("android/app/build.gradle.kts")]
-          p = next((x for x in candidates if x.exists()), None)
-          if p is None:
+          app_candidates = [Path("android/app/build.gradle"), Path("android/app/build.gradle.kts")]
+          app = next((p for p in app_candidates if p.exists()), None)
+          if app is None:
               raise SystemExit("Android app Gradle file was not generated")
-          s = p.read_text()
-          s2 = s.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = 36")
-          s2 = s2.replace("compileSdkVersion flutter.compileSdkVersion", "compileSdkVersion 36")
-          if s2 == s:
-              s2, n = re.subn(r"(compileSdk(?:Version)?\s*[= ]\s*)\d+", r"\g<1>36", s, count=1)
-              if n == 0:
-                  raise SystemExit("Could not locate compileSdk setting in " + str(p))
-          p.write_text(s2)
-          print("Updated", p, "to compileSdk 36")
+          s = app.read_text()
+          s = s.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = 36")
+          s = s.replace("compileSdkVersion flutter.compileSdkVersion", "compileSdkVersion 36")
+          s, n = re.subn(r"(compileSdk(?:Version)?\\s*[= ]\\s*)\\d+", r"\\g<1>36", s, count=1)
+          if "compileSdk = 36" not in s and "compileSdkVersion 36" not in s:
+              raise SystemExit("Failed to force app compileSdk 36")
+          app.write_text(s)
+          print("Forced app compileSdk 36 in", app)
+
+          # Flutter plugins such as file_picker are separate Android subprojects.
+          # Force their Android library compileSdk too, not only the app module.
+          root = Path("android/build.gradle")
+          if not root.exists():
+              raise SystemExit("Expected generated android/build.gradle")
+          gradle = root.read_text()
+          marker = "// FORCE_ANDROID_SUBPROJECT_COMPILE_SDK_36"
+          if marker not in gradle:
+              gradle += "\\n\\n" + marker + """
+          subprojects {
+              afterEvaluate { project ->
+                  def androidExtension = project.extensions.findByName("android")
+                  if (androidExtension != null) {
+                      androidExtension.compileSdkVersion(36)
+                  }
+              }
+          }
+          """
+              root.write_text(gradle)
+          print("Forced compileSdk 36 for Android plugin subprojects")
           PY
 
       - name: Get dependencies
