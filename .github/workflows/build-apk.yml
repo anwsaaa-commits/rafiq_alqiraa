@@ -86,9 +86,9 @@ jobs:
               if root.suffix == ".kts":
                   addition = '''
           // FORCE_ANDROID_SUBPROJECT_COMPILE_SDK_36
-          subprojects {
-              afterEvaluate { project ->
-                  val androidExtension = project.extensions.findByName("android")
+          subprojects { subproject ->
+              subproject.plugins.withId("com.android.library") { _ ->
+                  val androidExtension = subproject.extensions.findByName("android")
                   if (androidExtension != null) {
                       val compileSdkMethod = androidExtension.javaClass.methods.firstOrNull {
                           (it.name == "compileSdkVersion" || it.name == "setCompileSdkVersion") &&
