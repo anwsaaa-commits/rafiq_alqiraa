@@ -264,7 +264,7 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
 
   Future<void> goToPage(int value) async {
     if (value < 1 || value > totalPages) return;
-    controller.jumpTo(value);
+    controller.jumpToPage(value);
     await savePosition(value);
     if (mounted) setState(() => controlsVisible = false);
   }
