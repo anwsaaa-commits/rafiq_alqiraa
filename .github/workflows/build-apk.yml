@@ -64,8 +64,8 @@ jobs:
           source = source.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = 36")
           source = source.replace("compileSdkVersion flutter.compileSdkVersion", "compileSdkVersion 36")
           source, count = re.subn(
-              r"(compileSdk(?:Version)?\\s*[= ]\\s*)\\d+",
-              r"\\g<1>36",
+              r"(compileSdk(?:Version)?\s*[= ]\s*)\d+",
+              r"\g<1>36",
               source,
               count=1,
           )
@@ -117,7 +117,7 @@ jobs:
               }
           }
           '''
-              root.write_text(gradle.rstrip() + "\\n\\n" + addition.lstrip())
+              root.write_text(gradle.rstrip() + "\n\n" + addition.lstrip())
 
           print("Forced compileSdk 36 for Android plugin subprojects using", root)
           PY
