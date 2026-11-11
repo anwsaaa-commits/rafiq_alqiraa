@@ -51,39 +51,75 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
-          app_candidates = [Path("android/app/build.gradle"), Path("android/app/build.gradle.kts")]
+
+          app_candidates = [
+              Path("android/app/build.gradle"),
+              Path("android/app/build.gradle.kts"),
+          ]
           app = next((p for p in app_candidates if p.exists()), None)
           if app is None:
               raise SystemExit("Android app Gradle file was not generated")
-          s = app.read_text()
-          s = s.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = 36")
-          s = s.replace("compileSdkVersion flutter.compileSdkVersion", "compileSdkVersion 36")
-          s, n = re.subn(r"(compileSdk(?:Version)?\\s*[= ]\\s*)\\d+", r"\\g<1>36", s, count=1)
-          if "compileSdk = 36" not in s and "compileSdkVersion 36" not in s:
+
+          source = app.read_text()
+          source = source.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = 36")
+          source = source.replace("compileSdkVersion flutter.compileSdkVersion", "compileSdkVersion 36")
+          source, count = re.subn(
+              r"(compileSdk(?:Version)?\\s*[= ]\\s*)\\d+",
+              r"\\g<1>36",
+              source,
+              count=1,
+          )
+          if "compileSdk = 36" not in source and "compileSdkVersion 36" not in source:
               raise SystemExit("Failed to force app compileSdk 36")
-          app.write_text(s)
+          app.write_text(source)
           print("Forced app compileSdk 36 in", app)
 
-          # Flutter plugins such as file_picker are separate Android subprojects.
-          # Force their Android library compileSdk too, not only the app module.
-          root = Path("android/build.gradle")
-          if not root.exists():
-              raise SystemExit("Expected generated android/build.gradle")
-          gradle = root.read_text()
+          # Newer Flutter templates may generate the root Gradle file as Kotlin DSL.
+          root_candidates = [Path("android/build.gradle"), Path("android/build.gradle.kts")]
+          root = next((p for p in root_candidates if p.exists()), None)
+          if root is None:
+              raise SystemExit("Generated Android root Gradle file was not found")
+
           marker = "// FORCE_ANDROID_SUBPROJECT_COMPILE_SDK_36"
+          gradle = root.read_text()
           if marker not in gradle:
-              gradle += "\\n\\n" + marker + """
+              if root.suffix == ".kts":
+                  addition = '''
+          // FORCE_ANDROID_SUBPROJECT_COMPILE_SDK_36
+          subprojects {
+              afterEvaluate {
+                  val androidExtension = extensions.findByName("android")
+                  if (androidExtension != null) {
+                      val compileSdkMethod = androidExtension.javaClass.methods.firstOrNull {
+                          (it.name == "compileSdkVersion" || it.name == "setCompileSdkVersion") &&
+                              it.parameterTypes.size == 1 &&
+                              (it.parameterTypes[0] == Int::class.javaPrimitiveType ||
+                               it.parameterTypes[0] == Integer::class.java)
+                      }
+                      compileSdkMethod?.invoke(androidExtension, 36)
+                  }
+              }
+          }
+          '''
+              else:
+                  addition = '''
+          // FORCE_ANDROID_SUBPROJECT_COMPILE_SDK_36
           subprojects {
               afterEvaluate { project ->
                   def androidExtension = project.extensions.findByName("android")
                   if (androidExtension != null) {
-                      androidExtension.compileSdkVersion(36)
+                      def compileSdkMethod = androidExtension.class.methods.find {
+                          (it.name == "compileSdkVersion" || it.name == "setCompileSdkVersion") &&
+                              it.parameterTypes.length == 1
+                      }
+                      compileSdkMethod?.invoke(androidExtension, 36)
                   }
               }
           }
-          """
-              root.write_text(gradle)
-          print("Forced compileSdk 36 for Android plugin subprojects")
+          '''
+              root.write_text(gradle.rstrip() + "\\n\\n" + addition.lstrip())
+
+          print("Forced compileSdk 36 for Android plugin subprojects using", root)
           PY
 
       - name: Get dependencies
