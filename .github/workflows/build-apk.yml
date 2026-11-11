@@ -87,8 +87,8 @@ jobs:
                   addition = '''
           // FORCE_ANDROID_SUBPROJECT_COMPILE_SDK_36
           subprojects {
-              afterEvaluate {
-                  val androidExtension = extensions.findByName("android")
+              afterEvaluate { project ->
+                  val androidExtension = project.extensions.findByName("android")
                   if (androidExtension != null) {
                       val compileSdkMethod = androidExtension.javaClass.methods.firstOrNull {
                           (it.name == "compileSdkVersion" || it.name == "setCompileSdkVersion") &&
