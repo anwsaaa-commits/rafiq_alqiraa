@@ -14,24 +14,57 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
+
       - name: Generate Android project files
         run: flutter create . --org com.alshaheen --project-name rafiq_alqiraa --platforms=android --no-pub
+
+      - name: Install Android API 36
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set Android compile SDK to 36
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/build.gradle")
+          if not p.exists():
+              p = Path("android/app/build.gradle.kts")
+          if not p.exists():
+              raise SystemExit("Android app Gradle file was not generated")
+          s = p.read_text()
+          s2 = s.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = 36")
+          s2 = s2.replace("compileSdkVersion flutter.compileSdkVersion", "compileSdkVersion 36")
+          if s2 == s:
+              import re
+              s2, n = re.subn(r"(compileSdk(?:Version)?\\s*[= ]\\s*)\\d+", r"\\g<1>36", s, count=1)
+              if n == 0:
+                  raise SystemExit("Could not locate compileSdk setting in " + str(p))
+          p.write_text(s2)
+          print("Updated", p, "to compileSdk 36")
+
       - name: Get dependencies
         run: flutter pub get
+
       - name: Analyze
         run: flutter analyze
+
       - name: Build release APK
         run: flutter build apk --release
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
