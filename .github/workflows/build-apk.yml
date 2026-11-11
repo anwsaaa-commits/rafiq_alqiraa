@@ -73,8 +73,6 @@ jobs:
               raise SystemExit("Failed to force app compileSdk 36")
           app.write_text(source)
           print("Forced app compileSdk 36 in", app)
-
-          print("Forced app compileSdk 36 in", app)
           PY
 
       - name: Get dependencies
@@ -106,8 +104,8 @@ jobs:
                       "compileSdkVersion 36",
                   )
                   updated, count = re.subn(
-                      r"(compileSdk(?:Version)?\\s*[= ]\\s*)\\d+",
-                      r"\\g<1>36",
+                      r"(compileSdk(?:Version)?\s*[= ]\s*)\d+",
+                      r"\g<1>36",
                       updated,
                   )
                   if updated != source:
@@ -116,9 +114,6 @@ jobs:
                       print("Patched", gradle_file)
           print("Patched Android plugin Gradle files:", patched)
           PY
-
-      - name: Get dependencies
-        run: flutter pub get
 
       - name: Analyze
         run: flutter analyze
